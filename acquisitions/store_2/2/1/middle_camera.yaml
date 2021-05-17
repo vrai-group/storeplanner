@@ -1,0 +1,8 @@
+# cameras.yaml file
+
+capture_time: 25.858000000
+height: 2160
+width: 3840
+distorton coefficients: (1e-08, 1e-08, 1e-08, 1e-08, 1e-08)
+camera matrix: (3325.528147147122, 0.0, 1920.5, 0.0, 3325.528147147122, 1080.5, 0.0, 0.0, 1.0)
+rectification matrix: (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
