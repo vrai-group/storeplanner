@@ -2,6 +2,7 @@
 <launch>
   <arg name="namespace" default="/"/>
 
+  <arg name="task_num"   default="2"/>
   <arg name="store_name"   default="store_2"/>
   <arg name="map_name"  default="blender_map"/> <!-- the name given when saving it-->
   <arg name="traj_num"  default="2"/>
@@ -19,7 +20,7 @@
 <!-- from pal_navigation_cfg_public/pal_navigation_cfg_pmb2/config/base/common/local_costmap_public_sim.yaml-->
 <param name="robot_radius" value="0.275"/>
 
- <arg name="visual_check_wp_generator"   default="false"/>
+ <arg name="visual_check_wp_generator"   default="true"/>
 
 <group unless="$(arg visual_check_wp_generator)">
 
@@ -103,7 +104,7 @@
 
   <group if="$(arg generator_on)">
       <node name="wpoints_generator" pkg="storeplanner" type="wpoints_generator.py" output="screen" 
-        args="$(arg store_name) $(arg traj_num) $(arg map_name) $(arg visual_check_wp_generator)"/>
+        args="$(arg task_num) $(arg store_name) $(arg traj_num) $(arg map_name) $(arg visual_check_wp_generator)"/>
     </group> 
 
 </launch>

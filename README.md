@@ -48,7 +48,7 @@ Another store information that should be stored is a file containing the metadat
 An example of this file is given below
 ```json
 {
-  "shelfs" : [
+  "shelves" : [
     {
       "id" : "1", 
       "x" : 26.5,

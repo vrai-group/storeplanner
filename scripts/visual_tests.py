@@ -82,10 +82,6 @@ def show_good_bad_points(waypoints,map_source):
 
     utils.show_img_and_wait_key("Wpoints goodness", img)
 
-def run(robot_trajectory, filename, map_source):
-    utils = Utils(filename, map_source)
-
-
 #drawing functions
 def draw_point(img,pt,color=(0,0,255),thickness=3):
     return cv2.circle(img,pt,thickness,color,-1)

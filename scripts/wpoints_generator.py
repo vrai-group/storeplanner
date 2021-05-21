@@ -21,13 +21,15 @@ class trajectoryGenerator:
 
     def __init__(self, args, debug_mode):
 
-        self.store_name = args[1]
-        self.num_trajectory = args[2]
-        self.map_name = args[3]
+        self.task_num = args[1]
+        self.store_name = args[2]
+        self.num_trajectory = args[3]
+        self.map_name = args[4]
+
         debug_mode = bool()
-        if args[4] == 'True' or args[4] == 'true':
+        if args[5] == 'True' or args[5] == 'true':
             debug_mode = True
-        elif args[4] == 'False' or args[4] == 'false':
+        elif args[5] == 'False' or args[5] == 'false':
             debug_mode = False
 
         rospack = rospkg.RosPack()
@@ -38,44 +40,52 @@ class trajectoryGenerator:
 
         #creates folders needed to store the final acquisitions
         self.utils.dir_exists( self.base_path + 'acquisitions/' + self.store_name + '/' + self.num_trajectory)
-        self.utils.parse_shelfs(self.base_path + 'models/' + self.store_name + '/shelves/shelves.json')
-        self.shelfs = self.utils.get_shelfs()
 
+        #shelves
+        self.utils.parse_shelves(self.base_path + 'models/' + self.store_name + '/shelves/shelves.json')
+        self.shelves = self.utils.get_shelves()
 
-        #load current trajectory and tranform it. full_trajectory is 
-        # in the correct reference for the robot 
+        #customer trajectory
         self.full_trajectory = self.utils.load_trajectory() #TODO make rospack only used here
 
         self.map_shift = rospy.get_param("map_shift")
-        # self.robot_radius = rospy.get_param("/move_base/global_costmap/robot_radius")
+       
         self.robot_radius = rospy.get_param("robot_radius")
         self.patch_sz = 30 #based on the robot radius (must be divisible by 2)
         self.patch_len = 10 #(must be divisible by 2)
         
         self.px_robot_radius = self.utils.meters2pixels(self.robot_radius,0)[0]
 
+        #repulsive areas
         self.utils.calculate_repulsive_areas(self.patch_sz)
         self.repulsive_areas = self.utils.get_repulsive_areas()
+
+        #crossroads
+        self.crossroads = self.utils.parse_crossroads(self.base_path + 'models/' + self.store_name + '/shelves/crossroads.json')
+        self.crossroads = self.utils.get_crossroads()
 
         self.goal_cnt = 0
        
         if debug_mode == True :
-            #visual_tests.run()
-            #sys.exit(0)
             
             #performing all the steps to send goal but just for visualization except the map shift
-            self.utils.set_map_image() #to check if the given goal is good 
+            self.utils.set_map_image(self.task_num) #to check if the given goal is good 
             map_image = self.utils.get_map_image()
-            shelfs_img = self.utils.gray2bgr(map_image)
+            check_img = self.utils.gray2bgr(map_image)
             img = self.utils.gray2bgr(map_image)
 
-            for shelf in self.shelfs:
-                if shelf.id == "8" or shelf.id == "1":
-                    shelfs_img = visual_tests.draw_shelf(img,shelf)
-            
+            #shelves check
+            for shelf in self.shelves:
+                # if shelf.id == "8" or shelf.id == "1":
+                check_img = visual_tests.draw_shelf(img,shelf)
+            #repulsive areas check
             for rep_area in self.repulsive_areas:
-                if rep_area.id == "8" or rep_area.id == "1":
-                    shelfs_img = visual_tests.draw_roi(img,rep_area)
+                # if rep_area.id == "8" or rep_area.id == "1":
+                check_img = visual_tests.draw_roi(img,rep_area)
+
+            #crossroads check
+            for crossroad in self.crossroads:
+                check_img = visual_tests.draw_point(check_img,crossroad,(0,0,255),5)
             
             for position in self.full_trajectory:
                 i,j = self.utils.map2image(position[0],position[1])
@@ -84,30 +94,29 @@ class trajectoryGenerator:
                 #with key the goal counter (append 0,0 if query_area i s 0). This is TODO, for now we iterate
                 #over all of them (does not affect planner since offline)
                 if query_area.x != 0:
-                    # shelfs_img = visual_tests.draw_arrow(shelfs_img,(i,j),query_area.center,(0,255,0))
+                    # check_img = visual_tests.draw_arrow(check_img,(i,j),query_area.center,(0,255,0))
                     
                     if self.utils.is_inside_a_repulsive_area(self.repulsive_areas,(i,j)):
                         valid_waypoint = self.utils.push_waypoint((i,j),query_area,self.patch_sz)
                         object_position = (i,j)
-                        # shelfs_img = visual_tests.draw_point(shelfs_img,valid_waypoint,(0,255,0))
-                        # shelfs_img = visual_tests.draw_point(shelfs_img,object_position,(255,0,0))
+                        # check_img = visual_tests.draw_point(check_img,valid_waypoint,(0,255,0))
+                        # check_img = visual_tests.draw_point(check_img,object_position,(255,0,0))
                     else:
                         valid_waypoint = (i,j)
                         object_position = query_area.center
-                        # shelfs_img = visual_tests.draw_point(shelfs_img,valid_waypoint,(0,255,0))
-                        # shelfs_img = visual_tests.draw_point(shelfs_img,object_position,(255,0,0))
+                        # check_img = visual_tests.draw_point(check_img,valid_waypoint,(0,255,0))
+                        # check_img = visual_tests.draw_point(check_img,object_position,(255,0,0))
                
-                    # shelfs_img = visual_tests.draw_arrow(shelfs_img,valid_waypoint,object_position,(0,0,255))
-            self.utils.show_img_and_wait_key("Wpoints Inside Shelfs Checks", shelfs_img) 
+                    # check_img = visual_tests.draw_arrow(check_img,valid_waypoint,object_position,(0,0,255))
+            self.utils.show_img_and_wait_key("Shelves, Rep. Area and Crossroads", check_img) 
 
-            self.utils.save_image(self.base_path + '/shelfs_check.jpg', shelfs_img)
+            self.utils.save_image(self.base_path + '/visual_map_check.jpg', check_img)
             #The drawings are the following:
             # at each waypoint of the trajectory we have a blue circle representing the robot size
             # a yellow square showing the area on which we ask if the waypoint is good or needs to be refined
             # arrow (for now only pointing at 0 degrees) to show the robot heading
             #if the point is bad, additional squares and arrows are shown
             goal_cnt = 0
-            sys.exit(0)
             for position in self.full_trajectory:
                 i,j = self.utils.map2image(position[0],position[1])
                    
@@ -117,7 +126,7 @@ class trajectoryGenerator:
                 img = visual_tests.draw_patch(img,new_img_pt,self.patch_sz,(0,255,0))
                 # img = visual_tests.draw_robot(img,new_img_pt,self.px_robot_radius,(255,0,0))
                 # img = visual_tests.draw_arrow(img,new_img_pt,(new_img_pt[0]+25,new_img_pt[1]),(0,255,0))
-                #this happens if shelfs are too far
+                #this happens if shelves are too far
                 if robot_pose != 0 and object_pose != 0 :
                     img = visual_tests.draw_arrow(img,robot_pose,object_pose,(255,0,0))
                 if( i!=new_img_pt[0] or j != new_img_pt[1] ):
@@ -203,15 +212,15 @@ class trajectoryGenerator:
 
     def run(self):
         
+        self.utils.set_map_image(self.task_num) #to check if the given goal is good 
 
-        self.utils.set_map_image() #to check if the given goal is good 
-        map_image = self.utils.get_map_image()
-        img = self.utils.gray2bgr(map_image)
+        map_img = self.utils.gray2bgr(self.utils.get_map_image())
 
         #######################
         ## OLD METHOD (patch search)
         #######################
-
+        
+        # img = self.utils.gray2bgr(self.utils.get_map_image())
         # for position in self.full_trajectory:
         #     #this double transformation is required
         #   i,j = self.utils.map2image(position[0],position[1])
@@ -234,38 +243,43 @@ class trajectoryGenerator:
             
         ###TODO ALL OFFLINE, THEN SEND ONLY GOOD WAYPOINTS!
 
-        # for position in self.full_trajectory:
-            # i,j = self.utils.map2image(position[0],position[1])
-        i,j = self.utils.map2image(6.9 ,15.0)
-       
+        if self.task_num == 1:
+
+            # for position in self.full_trajectory:
+                # i,j = self.utils.map2image(position[0],position[1])
+            i,j = self.utils.map2image(6.7 ,15.0)
         
-        query_area = self.utils.find_query_shelf((i,j)) #getting rep area, not shelf
-        #since we have a query shelf for each desired position, we can associate a dictionary
-        #with key the goal counter (append 0,0 if query_area i s 0). This is TODO, for now we iterate
-        #over all of them (does not affect planner since offline)
-        if query_area.x != 0: #if the generated waypoint from CNN is in good we send it, otherwise we simply skip it
-            valid_waypoint = (0,0)
-            if self.utils.is_inside_a_repulsive_area(self.repulsive_areas,(i,j)):
-                valid_waypoint = self.utils.push_waypoint((i,j),query_area,self.patch_sz)
-                object_position = (i,j)
-            else:
-                valid_waypoint = (i,j)
-                object_position = query_area.center
+            
+            query_area = self.utils.find_query_shelf((i,j)) #getting rep area, not shelf
+            #since we have a query shelf for each desired position, we can associate a dictionary
+            #with key the goal counter (append 0,0 if query_area i s 0). This is TODO, for now we iterate
+            #over all of them (does not affect planner since offline)
+            if query_area.x != 0: #if the generated waypoint from CNN is in good we send it, otherwise we simply skip it
+                valid_waypoint = (0,0)
+                if self.utils.is_inside_a_repulsive_area(self.repulsive_areas,(i,j)):
+                    valid_waypoint = self.utils.push_waypoint((i,j),query_area,self.patch_sz)
+                    object_position = (i,j)
+                else:
+                    valid_waypoint = (i,j)
+                    object_position = query_area.center
 
-            x, y = self.utils.image2map(valid_waypoint[0],valid_waypoint[1])
-            x, y = self.utils.shift_goal((x,y),self.map_shift)
-            object_position = self.utils.image2map(object_position[0],object_position[1])
-            object_position = self.utils.shift_goal(object_position,self.map_shift)
+                x, y = self.utils.image2map(valid_waypoint[0],valid_waypoint[1])
+                x, y = self.utils.shift_goal((x,y),self.map_shift)
+                object_position = self.utils.image2map(object_position[0],object_position[1])
+                object_position = self.utils.shift_goal(object_position,self.map_shift)
 
-            self.send_waypoint(x, y)
-            self.goal_cnt = self.goal_cnt + 1
+                self.send_waypoint(x, y)
+                self.goal_cnt = self.goal_cnt + 1
 
-            capture_side = self.align_robot(object_position)
-            self.capture(capture_side, query_area) 
-  
-        rospy.signal_shutdown("Reached last goal, shutting down wpoint generator node")
-        rospy.logdebug("Reached last goal, shutting down wpoint generator node")
+                capture_side = self.align_robot(object_position)
+                self.capture(capture_side, query_area) 
+    
+            rospy.signal_shutdown("Reached last goal, shutting down wpoint generator node")
+            rospy.logdebug("Reached last goal, shutting down wpoint generator node")
 
+        else:
+            for crossroad in self.crossroads:
+                print(crossroad)
 
     def send_waypoint(self, x, y):
         print("Sending waypoint!")
@@ -300,6 +314,7 @@ class trajectoryGenerator:
         epsilon = 0.02 #around 1 degree
 
         theta = Utils.get_robot_obj_angle(curr_x,curr_y,curr_yaw,object_position)
+
         w_direction = 1 if abs(theta) >= Utils.pi()/2 else -1
 
         msg.angular.z = w_direction*0.2 #moving very slowly
@@ -312,25 +327,6 @@ class trajectoryGenerator:
         capture_side = "left" if w_direction == -1 else "right"
 
         return capture_side
-
-        # yaw_goal = 0
-        # dir_sign = 0
-        # if abs(curr_yaw) < abs(curr_yaw - self.utils.pi()):
-        #    yaw_goal = 0
-        #    dir_sign = -1 if curr_yaw > 0 else 1
-        # else:
-        #     yaw_goal = self.utils.pi()
-        #     dir_sign = -1 if curr_yaw < 0 else 1
-
-        # epsilon = 0.02 #around 1 degree
-
-        # msg.angular.z = dir_sign*0.2 #moving very slowly
-            
-        # while not rospy.is_shutdown() and abs(self.pose.pose.pose.orientation.z - yaw_goal) > epsilon:
-        #     self.cmd_vel_pub.publish(msg)
-        #     curr_yaw = self.pose.pose.pose.orientation.z
-        
-        
         
     def capture(self, capture_side, query_area):
 
@@ -435,7 +431,7 @@ def main():
     
     args = rospy.myargv()
     
-    if len(args) != 5:
+    if len(args) != 6:
         Utils.print_usage(1)
     rospy.init_node('wpoints_generator', anonymous=True)
     

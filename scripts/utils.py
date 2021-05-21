@@ -37,14 +37,21 @@ class Utils:
 
         self.set_map_params() #with harcoded dimensions (TODO parametrize them based on store in the future)
 
-        self.shelfs = list()
+        self.customer_traj = list()
+        self.shelves = list()
         self.repulsive_areas = list()
+        self.crossroads = list()
+        self.forbidden_area = 0
 
 
 
     @staticmethod
     def print_usage(exit_code=0):
-        print '''Usage: rosrun storeplanner wpoints_generator.py <store_name> <traj_num> 
+        print '''Usage: rosrun storeplanner wpoints_generator.py <task_num> <store_name> <traj_num> 
+
+        - <task_num> the task you want to perform with the robot:
+                      1 -> customer behaviour mimic 
+                      2 -> customer avoidance
 
         - <store_name> the store name you want to inspecting under 
                        trajectories/ directory
@@ -111,28 +118,28 @@ class Utils:
             rospy.signal_shutdown("Wrong map source param!")
 
     ##################################
-    ##SHELFS/FORBIDDEN AREAS UTILS
+    ##SHELVES/FORBIDDEN AREAS UTILS
     ##################################
 
     #TODO in init
-    #extracts shelfs from file and convert them into image coordinates
-    def parse_shelfs(self,filepath):
+    #extracts shelves from file and convert them into image coordinates
+    def parse_shelves(self,filepath):
         if os.path.exists(filepath):
             with open(filepath,'rb') as json_file:
                 data = json.load(json_file)
         else:
-            rospy.signal_shutdown('Could not find shelfs file.\nCheck file path.')
+            rospy.signal_shutdown('Could not find shelves file.\nCheck file path.')
         
-        for shelf in data['shelfs']:
+        for shelf in data['shelves']:
             p1_x,p1_y = self.map2image(shelf['x'],shelf['y'])
             w,h = self.meters2pixels(shelf['w'],shelf['h'])
             img_shelf = Shelf(shelf['id'],p1_x,p1_y,shelf['z'],w,h)
-            self.shelfs.append(img_shelf)
+            self.shelves.append(img_shelf)
             
     #TODO in init
     def calculate_repulsive_areas(self,patch_sz):
     
-        for shelf in self.shelfs:
+        for shelf in self.shelves:
             d_min = 0
             if shelf.z > CamerasParams.robot_height: #make sure we take the shelf top part
                 d_min = (shelf.z - CamerasParams.top_camera_height)/math.tan(CamerasParams.vfov/2)
@@ -147,7 +154,7 @@ class Utils:
             eps = 0
             d = d_min_px + eps #to have some margin eventually
    
-            repulsive_shelf = Shelf(shelf.id,shelf.x-d,shelf.y-d,shelf.z,shelf.w+2*d,shelf.h+2*d) #basicallly enhancing the shelfs
+            repulsive_shelf = Shelf(shelf.id,shelf.x-d,shelf.y-d,shelf.z,shelf.w+2*d,shelf.h+2*d) #basicallly enhancing the shelves
             self.repulsive_areas.append(repulsive_shelf)
 
     def is_inside_a_repulsive_area(self,regions,pt):
@@ -156,7 +163,7 @@ class Utils:
                 return True       
         return False
 
-    #since shelfs and repulsive areas share the same center and id, we get the query shelf by using the repulsive areas
+    #since shelves and repulsive areas share the same center and id, we get the query shelf by using the repulsive areas
     def find_query_shelf(self,goal):
         dist_to_shelf_center = 99999
         query_shelf = Shelf()
@@ -204,13 +211,11 @@ class Utils:
         print("Could not find a feasible position for this waypoint. Aborting scanning")
         return 0,0
 
-        
-
     def get_repulsive_areas(self):
         return self.repulsive_areas 
 
-    def get_shelfs(self):
-        return self.shelfs
+    def get_shelves(self):
+        return self.shelves
 
     ##################################
     ##TRAJECTORY UTILS
@@ -230,13 +235,12 @@ class Utils:
         return self.transform_waypoints(data["points"])
  #TODO in init instead of in wpoint generator
     def transform_waypoints(self, store_waypoints):
-        robot_waypoints = list()
         
         for coord in store_waypoints: #dict type
             new_coord = self.tranform_position( coord['x'], coord['y'])
-            robot_waypoints.append( new_coord )
+            self.customer_traj.append( new_coord )
 
-        return robot_waypoints
+        return self.customer_traj
  #TODO in init instead of in wpoint generator
     def correct_trajectory(self,traj, map_shift):
         corr_traj = list()
@@ -262,6 +266,26 @@ class Utils:
 
         return ( x_map, y_map )
 
+
+    ##################################
+    ##CROSSROADS UTILS
+    ##################################
+
+    def parse_crossroads(self,filepath):
+        if os.path.exists(filepath):
+            with open(filepath,'rb') as json_file:
+                data = json.load(json_file)
+        else:
+            rospy.signal_shutdown('Could not find crossroads file.\nCheck file path.')
+        
+        for crossroad in data['crossroads']:
+            x,y = self.map2image(crossroad['x'],crossroad['y'])
+            self.crossroads.append((x,y))
+
+    def get_crossroads(self):
+        return self.crossroads
+
+    
     ##################################
     ## COORDINATES UTILS
     ##################################
@@ -470,14 +494,62 @@ class Utils:
     ## MAP UTILS
     ##################################
 
-    def set_map_image(self):
+    def set_map_image(self, task):
+
         rospack = rospkg.RosPack()
         filepath = rospack.get_path('storeplanner')
         filename = filepath + '/maps/' + self.store_name + '/' + self.map_name + '/map.pgm'
-        self.map_image = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+
+        if task == 1:
+            self.map_image = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)    
+        else:
+            curr_map = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+            min_x, min_y, max_x, max_y = self.calc_forbidden_area(curr_map) 
+            #this is done for the planner if for some reason a bad wpoint is sent to move_base
+            curr_map[min_y:max_y,min_x:max_x] = 0
+            self.map_image = curr_map
+            self.forbidden_area = (min_x, min_y, max_x, max_y)
+        
 
     def get_map_image(self):
         return self.map_image
+
+    ##################################
+    ## FORBIDDEN AREA
+    ##################################
+
+    def calc_forbidden_area(self, curr_map):
+
+        min_x, min_y = self.map2image(self.customer_traj[0][0],self.customer_traj[0][1])
+        max_x, max_y = self.map2image(self.customer_traj[0][0],self.customer_traj[0][1])
+        
+        for position in self.customer_traj:
+            x, y = self.map2image(position[0],position[1])
+
+            if x < min_x:
+                min_x = x
+            if x > max_x:
+                max_x = x
+            if y < min_y:
+                min_y = y
+            if y > max_y:
+                max_y = y
+
+        return min_x,min_y,max_x,max_y
+
+    def is_forbidden_point(self,point):
+        x_min = self.forbidden_area[0]
+        y_min = self.forbidden_area[1]
+        x_max = self.forbidden_area[2]
+        y_max = self.forbidden_area[3]
+
+        if x_min <= point[0] <= x_max and y_min <= point[1] <= y_max:
+            return True
+        else:
+            return False
+
+    def get_forbidden_area(self):
+        return self.forbidden_area
 
     ##################################
     ## OPENCV UTILS
@@ -559,7 +631,3 @@ class Utils:
     @staticmethod
     def pi():
         return math.pi
-
-
-
-
