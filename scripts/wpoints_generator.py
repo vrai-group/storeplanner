@@ -35,16 +35,16 @@ class trajectoryGenerator:
         rospack = rospkg.RosPack()
         self.base_path = rospack.get_path('storeplanner') + '/'
 
-        self.utils = Utils(self.store_name, self.num_trajectory, self.map_name)
+        self.utils = Utils(self.task_num, self.store_name, self.num_trajectory, self.map_name)
         self.bridge = CvBridge()
 
         #creates folders needed to store the final acquisitions
         self.utils.dir_exists( self.base_path + 'acquisitions/' + self.store_name + '/' + self.num_trajectory)
 
         #shelves
-        self.utils.parse_shelves(self.base_path + 'models/' + self.store_name + '/shelves/shelves.json')
+        self.utils.parse_shelves(self.base_path + 'models/' + self.store_name + '/details/shelves.json')
         self.shelves = self.utils.get_shelves()
-
+        
         #customer trajectory
         self.full_trajectory = self.utils.load_trajectory() #TODO make rospack only used here
 
@@ -61,7 +61,7 @@ class trajectoryGenerator:
         self.repulsive_areas = self.utils.get_repulsive_areas()
 
         #crossroads
-        self.crossroads = self.utils.parse_crossroads(self.base_path + 'models/' + self.store_name + '/shelves/crossroads.json')
+        self.utils.parse_crossroads(self.base_path + 'models/' + self.store_name + '/details/crossroads.json')
         self.crossroads = self.utils.get_crossroads()
 
         self.goal_cnt = 0
@@ -249,7 +249,6 @@ class trajectoryGenerator:
                 # i,j = self.utils.map2image(position[0],position[1])
             i,j = self.utils.map2image(6.7 ,15.0)
         
-            
             query_area = self.utils.find_query_shelf((i,j)) #getting rep area, not shelf
             #since we have a query shelf for each desired position, we can associate a dictionary
             #with key the goal counter (append 0,0 if query_area i s 0). This is TODO, for now we iterate
@@ -279,7 +278,28 @@ class trajectoryGenerator:
 
         else:
             for crossroad in self.crossroads:
-                print(crossroad)
+                x, y = self.utils.image2map(crossroad[0],crossroad[1])
+                x, y = self.utils.shift_goal((x,y),self.map_shift)
+
+                print("forbidden area : ", self.utils.get_forbidden_area())
+                print("current goal : ",x,y)
+
+            for crossroad in self.crossroads:
+                x, y = self.utils.image2map(crossroad[0],crossroad[1])
+                x, y = self.utils.shift_goal((x,y),self.map_shift)
+
+                print("forbidden area : ", self.utils.get_forbidden_area())
+                print("current goal : ",x,y)
+
+                if self.utils.is_forbidden_goal((x,y)):
+                    print("Goal number: ", self.goal_cnt, "is inside forbidden area. Skipping.")
+                else:
+                    self.send_waypoint(x, y)
+                    self.goal_cnt = self.goal_cnt + 1
+
+
+            rospy.signal_shutdown("Reached last goal, shutting down wpoint generator node")
+            rospy.logdebug("Reached last goal, shutting down wpoint generator node")
 
     def send_waypoint(self, x, y):
         print("Sending waypoint!")

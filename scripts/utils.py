@@ -13,8 +13,9 @@ from cameras import CamerasParams
 
 class Utils:
 
-    def __init__(self, store_name='', traj_num='', map_name=''): #to put in config eventually
+    def __init__(self, task_num=1, store_name='', traj_num='', map_name=''): #to put in config eventually
 
+        self.task_num = task_num
         self.store_name = store_name
         self.traj_num = traj_num
         self.map_name = map_name
@@ -131,9 +132,7 @@ class Utils:
             rospy.signal_shutdown('Could not find shelves file.\nCheck file path.')
         
         for shelf in data['shelves']:
-            p1_x,p1_y = self.map2image(shelf['x'],shelf['y'])
-            w,h = self.meters2pixels(shelf['w'],shelf['h'])
-            img_shelf = Shelf(shelf['id'],p1_x,p1_y,shelf['z'],w,h)
+            img_shelf = Shelf(shelf['id'],shelf['x'],shelf['y'],shelf['z'],shelf['w'],shelf['h'])       
             self.shelves.append(img_shelf)
             
     #TODO in init
@@ -279,8 +278,7 @@ class Utils:
             rospy.signal_shutdown('Could not find crossroads file.\nCheck file path.')
         
         for crossroad in data['crossroads']:
-            x,y = self.map2image(crossroad['x'],crossroad['y'])
-            self.crossroads.append((x,y))
+            self.crossroads.append((crossroad['x'],crossroad['y']))
 
     def get_crossroads(self):
         return self.crossroads
@@ -500,14 +498,10 @@ class Utils:
         filepath = rospack.get_path('storeplanner')
         filename = filepath + '/maps/' + self.store_name + '/' + self.map_name + '/map.pgm'
 
-        if task == 1:
-            self.map_image = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)    
-        else:
-            curr_map = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-            min_x, min_y, max_x, max_y = self.calc_forbidden_area(curr_map) 
-            #this is done for the planner if for some reason a bad wpoint is sent to move_base
-            curr_map[min_y:max_y,min_x:max_x] = 0
-            self.map_image = curr_map
+        self.map_image = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)    
+        
+        if int(self.task_num) == 2:
+            min_x, min_y, max_x, max_y = self.calc_forbidden_area() 
             self.forbidden_area = (min_x, min_y, max_x, max_y)
         
 
@@ -517,14 +511,18 @@ class Utils:
     ##################################
     ## FORBIDDEN AREA
     ##################################
+    
+    #forbidden area is kept in meters
+    def calc_forbidden_area(self):
 
-    def calc_forbidden_area(self, curr_map):
+        min_x = self.customer_traj[0][0]
+        min_y = self.customer_traj[0][1]
+        max_x = self.customer_traj[0][0]
+        max_y = self.customer_traj[0][1]
 
-        min_x, min_y = self.map2image(self.customer_traj[0][0],self.customer_traj[0][1])
-        max_x, max_y = self.map2image(self.customer_traj[0][0],self.customer_traj[0][1])
-        
         for position in self.customer_traj:
-            x, y = self.map2image(position[0],position[1])
+            x = position[0]
+            y = position[1]
 
             if x < min_x:
                 min_x = x
@@ -537,13 +535,13 @@ class Utils:
 
         return min_x,min_y,max_x,max_y
 
-    def is_forbidden_point(self,point):
+    def is_forbidden_goal(self,goal):
         x_min = self.forbidden_area[0]
         y_min = self.forbidden_area[1]
         x_max = self.forbidden_area[2]
         y_max = self.forbidden_area[3]
 
-        if x_min <= point[0] <= x_max and y_min <= point[1] <= y_max:
+        if x_min <= goal[0] <= x_max and y_min <= goal[1] <= y_max:
             return True
         else:
             return False
