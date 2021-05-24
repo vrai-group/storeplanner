@@ -41,7 +41,7 @@ class Utils:
         self.customer_traj = list()
         self.shelves = list()
         self.repulsive_areas = list()
-        self.crossroads = list()
+        self.capture_stops = list()
         self.forbidden_area = 0
 
 
@@ -267,21 +267,21 @@ class Utils:
 
 
     ##################################
-    ##CROSSROADS UTILS
+    ##CAPTURE STOPS UTILS
     ##################################
 
-    def parse_crossroads(self,filepath):
+    def parse_capture_stops(self,filepath):
         if os.path.exists(filepath):
             with open(filepath,'rb') as json_file:
                 data = json.load(json_file)
         else:
-            rospy.signal_shutdown('Could not find crossroads file.\nCheck file path.')
+            rospy.signal_shutdown('Could not find capture stops file.\nCheck file path.')
         
-        for crossroad in data['crossroads']:
-            self.crossroads.append((crossroad['x'],crossroad['y']))
+        for stop in data['capture_stops']:
+            self.capture_stops.append((stop['x'],stop['y']))
 
-    def get_crossroads(self):
-        return self.crossroads
+    def get_capture_stops(self):
+        return self.capture_stops
 
     
     ##################################

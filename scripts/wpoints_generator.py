@@ -60,9 +60,9 @@ class trajectoryGenerator:
         self.utils.calculate_repulsive_areas(self.patch_sz)
         self.repulsive_areas = self.utils.get_repulsive_areas()
 
-        #crossroads
-        self.utils.parse_crossroads(self.base_path + 'models/' + self.store_name + '/details/crossroads.json')
-        self.crossroads = self.utils.get_crossroads()
+        #capture_stops
+        self.utils.parse_capture_stops(self.base_path + 'models/' + self.store_name + '/details/capture_stops.json')
+        self.capture_stops = self.utils.get_capture_stops()
 
         self.goal_cnt = 0
        
@@ -83,9 +83,9 @@ class trajectoryGenerator:
                 # if rep_area.id == "8" or rep_area.id == "1":
                 check_img = visual_tests.draw_roi(img,rep_area)
 
-            #crossroads check
-            for crossroad in self.crossroads:
-                check_img = visual_tests.draw_point(check_img,crossroad,(0,0,255),5)
+            #capture stops check
+            for stop in self.capture_stops:
+                check_img = visual_tests.draw_point(check_img,stop,(0,0,255),5)
             
             for position in self.full_trajectory:
                 i,j = self.utils.map2image(position[0],position[1])
@@ -108,7 +108,7 @@ class trajectoryGenerator:
                         # check_img = visual_tests.draw_point(check_img,object_position,(255,0,0))
                
                     # check_img = visual_tests.draw_arrow(check_img,valid_waypoint,object_position,(0,0,255))
-            self.utils.show_img_and_wait_key("Shelves, Rep. Area and Crossroads", check_img) 
+            self.utils.show_img_and_wait_key("Shelves, Rep. Area and Stops", check_img) 
 
             self.utils.save_image(self.base_path + '/visual_map_check.jpg', check_img)
             #The drawings are the following:
@@ -277,19 +277,10 @@ class trajectoryGenerator:
             rospy.logdebug("Reached last goal, shutting down wpoint generator node")
 
         else:
-            for crossroad in self.crossroads:
-                x, y = self.utils.image2map(crossroad[0],crossroad[1])
+            print("TASK 2,")
+            for stop in self.capture_stops:
+                x, y = self.utils.image2map(stop[0],stop[1])
                 x, y = self.utils.shift_goal((x,y),self.map_shift)
-
-                print("forbidden area : ", self.utils.get_forbidden_area())
-                print("current goal : ",x,y)
-
-            for crossroad in self.crossroads:
-                x, y = self.utils.image2map(crossroad[0],crossroad[1])
-                x, y = self.utils.shift_goal((x,y),self.map_shift)
-
-                print("forbidden area : ", self.utils.get_forbidden_area())
-                print("current goal : ",x,y)
 
                 if self.utils.is_forbidden_goal((x,y)):
                     print("Goal number: ", self.goal_cnt, "is inside forbidden area. Skipping.")

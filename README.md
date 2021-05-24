@@ -125,6 +125,8 @@ Type the following on the command line
 cd <your_workspace>/src/storeplanner/scripts/
 python2 map_details.py
 ```
+Required params for this script are the `store_name` and `map_name` that correspond to the folder names.
+
 This will enable the generation of shelves for the specified store and map together with the free spots to perform a planned itinerary.
 
 ### Navigation (Task 1)

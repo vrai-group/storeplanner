@@ -10,7 +10,8 @@ class mapDetails:
   def __init__(self, args):
 
     self.shelves = list()
-    self.crossroads = list()
+    self.shelves_h = list()
+    self.capture_stops = list()
 
     rospack = rospkg.RosPack()
     base_path = rospack.get_path('storeplanner')
@@ -29,30 +30,57 @@ class mapDetails:
 
   def run(self):
  
-    ans = raw_input("DO you want to select the shelves? [y/n]")
+    ans = raw_input("Do you want to select the shelves? [y/n]\n")
     
     if ans == 'y' or ans == 'yes':
+
       cv2.namedWindow("Shelves selector",cv2.WINDOW_NORMAL)
       cv2.resizeWindow("Shelves selector", self.img.shape[1], self.img.shape[0])
       self.shelves = cv2.selectROIs("Shelves selector",self.img)
-      self.save_shelves()
       cv2.destroyWindow("Shelves selector")
+      ans2 = raw_input("Do you want to give shelves height? (default 2.0 meters for all) [y/n]\n")
 
-    ans = raw_input("DO you want to select the crossroads? [y/n]")
+      if ans2 == 'y' or ans2 == 'yes':
+        self.shelves_h = self.calc_shelves_height()
+      else:
+        self.shelves_h = [2.0] * len(self.shelves)
+
+      self.save_shelves()
+      
+    #the capture stops should be given to the robot as it will do the inventary
+    ans = raw_input("Do you want to select the capture stops? [y/n]\n")
 
     if ans == 'y' or ans == 'yes':
-      cv2.namedWindow("Crossroads selector",cv2.WINDOW_NORMAL)
-      cv2.resizeWindow("Crossroads selector", self.img.shape[1], self.img.shape[0])
-      cv2.setMouseCallback("Crossroads selector",self.mouse_callback)
+      cv2.namedWindow("Capture Stops selector",cv2.WINDOW_NORMAL)
+      cv2.resizeWindow("Capture Stops selector", self.img.shape[1], self.img.shape[0])
+      cv2.setMouseCallback("Capture Stops selector",self.mouse_callback)
 
       while(True):
-        cv2.imshow("Crossroads selector",self.img)
+        cv2.imshow("Capture Stops selector",self.img)
         k = cv2.waitKey() & 0xFF
         if k == 27: #esc
             break
-      cv2.destroyWindow("Crossroads selector")
+      cv2.destroyWindow("Capture Stops selector")
       
-      self.save_crossroads()
+      self.save_capture_stops()
+
+  def calc_shelves_height(self):
+
+    shelves_h = list()
+
+    for shelf in self.shelves:
+      temp_img = self.img.copy()
+      (x, y, w, h) = shelf
+      cv2.rectangle(temp_img,(x,y),(x + w,y + h),(0,0,255),2)
+      cv2.namedWindow("Shelf Height calculator",cv2.WINDOW_NORMAL)
+      cv2.resizeWindow("Shelf Height calculator", int(self.img.shape[1]/2), int(self.img.shape[0]/2))
+      cv2.imshow("Shelf Height calculator",temp_img)
+      cv2.waitKey(300)
+      height = raw_input("Enter height for this shelf: ")
+      shelves_h.append(float(height))
+      cv2.destroyWindow("Shelf Height calculator")
+
+    return shelves_h
       
   def save_shelves(self):
 
@@ -69,26 +97,26 @@ class mapDetails:
         'id': shelf_cnt,
         'x': int(x),
         'y': int(y),
-        'z': 2.0, #TODO, selection of height
+        'z': float(self.shelves_h[shelf_cnt-1]),
         'w': int(w),
         'h': int(h)
     })
     with open(filename, 'w') as outfile:
       json.dump(data, outfile)
 
-  def save_crossroads(self):
+  def save_capture_stops(self):
 
-    filename = self.details_path + 'crossroads.json'
+    filename = self.details_path + 'capture_stops.json'
 
-    crossroad_cnt = 0
+    stop_cnt = 0
     data = {}
-    data['crossroads'] = []
+    data['capture_stops'] = []
     
-    for crossroad in self.crossroads:
-      crossroad_cnt = crossroad_cnt + 1
-      (x, y) = crossroad
-      data['crossroads'].append({
-        'id': crossroad_cnt,
+    for stop in self.capture_stops:
+      stop_cnt = stop_cnt + 1
+      (x, y) = stop
+      data['capture_stops'].append({
+        'id': stop_cnt,
         'x': int(x),
         'y': int(y)
     })
@@ -99,8 +127,8 @@ class mapDetails:
 
     if event == cv2.EVENT_LBUTTONDBLCLK:
         self.img = cv2.circle(self.img,(x,y),3,(0,0,255),-1)
-        cv2.imshow("Crossroads selector",self.img)
-        self.crossroads.append((x,y))
+        cv2.imshow("Capture Stops selector",self.img)
+        self.capture_stops.append((x,y))
 
 
 def main():
