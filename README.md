@@ -119,8 +119,17 @@ negate: 0
 occupied_thresh: 0.65 //not used since not probabilistic map (leave it as it is)
 free_thresh: 0.196 //not used since not probabilistic map (leave it as it is)
 ```
+Once the map is created, we can set up the .json file containing the shelfs coordinates and the .json file containing all the desidred crossroads for **Task 2**.
+Type the following on the command line
+```bash
+cd <your_workspace>/src/storeplanner/scripts/
+python2 map_details.py
+```
+This will enable the generation of shelves for the specified store and map together with the free spots to perform a planned itinerary.
 
-### Navigation
+### Navigation (Task 1)
+To perform **Task 1** it is required to have generated the .json file containing the shelves coorinates.
+
 The navigation step
 * Launch the navigation step: spawn robot and the store together with the map already created
 ```bash
@@ -130,18 +139,14 @@ The lost argument of the tutorial can be omitted (deafult is false). If set to t
 
 If you want to load a specific map of a specific store you have to provide them as command line parameters as e.g.
 ```bash
-roslaunch storeplanner nav_store.launch store_name:=store_2 map_name:=map
+roslaunch storeplanner nav_store.launch task_num:=2 store_name:=store_2 traj_num:=1 map_name:=blender_map
 ```
-Alternatively you can modify these two parameters directly in the launch file by setting the desired default map.
+Alternatively you can modify the parameters directly in the launch file by setting the desired default ones.
 
-#### Sending goals
-You can run the follow
-```bash
-rosrun storeplanner wpoints_generator.py <trajectory_filename>
-```
-TODO add the other required args to the py script
-to let
-Alternatively it is possible to enable the trajectory generation directly from the previous step launch file by enable it or by command line or in the launch itself (param ```generator_on:=true```). This will cause the robot to immediately start to follow the desired waypoints. In the same launchfile it is possible to change all the parameters for the script.
+Inside the above launch file it is possible to enable the script (```wpoints_generator.py```) which is a ROS node performing the assigned task, as detailed in the paper.
+
+### Navigation (Task 2)
+To perform **Task 2** the only difference is the requirement to generate also the crossroad file. The steps are exactly as for **Task 1**.
 
 #### Output
 The metadata, made by the captured images together with info on the robot trajectory are stored in ```/acquisitions/<store_name>/<num_traj>/``` for each waypoint of the trajectory selected at the beginning.
